@@ -131,32 +131,70 @@ def _scale_food(canopy: CanopyState, delta: float) -> float:
 
 def _scale_growth(lifespan_yr: float, epsilon: float) -> float:
     """
-    수명 → 성장 기간 → 신체 크기
+    수명 → 성장 기간 → 신체 크기  [멱함수 모델]
     수확 체감 (diminishing returns) 적용
     """
     ratio = lifespan_yr / MODERN_LIFESPAN_YR
     return ratio ** epsilon
 
 
+def _scale_growth_logistic(
+        lifespan_yr: float,
+        scale_max:   float = 2.3,
+        L_half:      float = 300.0
+) -> float:
+    """
+    수명 → 신체 크기  [로지스틱 모델, 포화 수렴]
+
+    Michaelis-Menten 포화 함수:
+      s = 1 + (scale_max - 1) × (L - L0) / (L - L0 + L_half)
+
+    특성:
+      L = L0(75yr): s = 1.0  (현대 기준)
+      L → ∞:        s → scale_max (상한선)
+      L = L0+L_half: s = (1 + scale_max) / 2 (중간값)
+
+    기본 파라미터:
+      scale_max=2.3: 최대 현대의 2.3배 (약 391cm, 1300g 체중)
+      L_half=300년:  L0+L_half=375년에서 중간값 도달
+    """
+    L0 = MODERN_LIFESPAN_YR
+    excess = max(0.0, lifespan_yr - L0)
+    return 1.0 + (scale_max - 1.0) * excess / (excess + L_half)
+
+
 # ── 통합 계산 ────────────────────────────────────────────────
 
 def compute_body_scale(
-        canopy:      CanopyState,
-        lifespan_yr: float,
-        params:      dict | None = None
+        canopy:       CanopyState,
+        lifespan_yr:  float,
+        params:       dict | None = None,
+        growth_model: str = "power"    # "power" 또는 "logistic"
 ) -> tuple[float, dict[str, float]]:
     """
     환경 + 수명 → (body_scale, 분해 딕셔너리)
 
+    Args:
+        growth_model: "power"    — 멱함수 (기본, 단순)
+                      "logistic" — 로지스틱 포화 (더 현실적)
+
     Returns:
-        (total_scale, {"s_o2": ..., "s_pressure": ..., ...})
+        (total_scale, {"s_o2": ..., "s_pressure": ..., "s_growth": ..., "model": ...})
     """
     p = params or DEFAULT_PARAMS
-    s_o2      = _scale_o2(canopy,       p.get("alpha",   0.18))
+    s_o2       = _scale_o2(canopy,       p.get("alpha",   0.18))
     s_pressure = _scale_pressure(canopy, p.get("beta",    0.12))
-    s_uv      = _scale_uv(canopy,       p.get("gamma",   0.18))
-    s_food    = _scale_food(canopy,     p.get("delta",   0.09))
-    s_growth  = _scale_growth(lifespan_yr, p.get("epsilon", 0.11))
+    s_uv       = _scale_uv(canopy,       p.get("gamma",   0.18))
+    s_food     = _scale_food(canopy,     p.get("delta",   0.09))
+
+    if growth_model == "logistic":
+        s_growth = _scale_growth_logistic(
+            lifespan_yr,
+            scale_max = p.get("logistic_max",  2.3),
+            L_half    = p.get("logistic_half", 300.0),
+        )
+    else:
+        s_growth = _scale_growth(lifespan_yr, p.get("epsilon", 0.11))
 
     total = s_o2 * s_pressure * s_uv * s_food * s_growth
     breakdown = {
@@ -165,14 +203,16 @@ def compute_body_scale(
         "s_uv":      s_uv,
         "s_food":    s_food,
         "s_growth":  s_growth,
+        "model":     growth_model,
     }
     return total, breakdown
 
 
 def estimate_body(
-        canopy:      CanopyState,
-        lifespan_yr: float,
-        params:      dict | None = None
+        canopy:       CanopyState,
+        lifespan_yr:  float,
+        params:       dict | None = None,
+        growth_model: str = "power"
 ) -> BodyProfile:
     """
     환경 + 수명 → BodyProfile (규빗 포함)
@@ -180,7 +220,7 @@ def estimate_body(
     신체 비율: 규빗 = 신장 × 0.265 (현대 측인류학 기반)
     체중 ∝ 신장³ (동일 체형 스케일링 가정)
     """
-    scale, bd = compute_body_scale(canopy, lifespan_yr, params)
+    scale, bd = compute_body_scale(canopy, lifespan_yr, params, growth_model)
 
     height_cm = MODERN_HEIGHT_CM * scale
     cubit_cm  = MODERN_FOREARM_CM * scale   # 규빗은 신장에 비례

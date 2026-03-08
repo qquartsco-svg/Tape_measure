@@ -26,7 +26,7 @@ from midos_engine import (
     compare_scenarios, temporal_analysis, canopy_sensitivity,
     rank_standards, ALL_STANDARDS, ARCH_RECORDS,
     CANOPY_PRE_FLOOD, CANOPY_EARLY_POST, CANOPY_PATRIARCHAL,
-    CANOPY_MOSAIC, CANOPY_MODERN,
+    CANOPY_MOSAIC, CANOPY_KINGDOM, CANOPY_MODERN,
     estimate_body, ALL_PERSONS,
 )
 from midos_engine.structures.noahs_ark import NoahsArk
@@ -164,6 +164,92 @@ def demo_sensitivity():
         )
 
 
+def demo_gravity():
+    """중력·대기 구조 하중 분석"""
+    from midos_engine.core.gravity import (
+        gravity_from_canopy, atmospheric_load,
+        GRAVITY_PRE_FLOOD, GRAVITY_MODERN
+    )
+    sep = "═" * 72
+    print(f"\n{sep}")
+    print("  10. 중력 및 대기 구조 하중 — 궁창 시대 vs 현대")
+    print(sep)
+    print(GRAVITY_PRE_FLOOD.info())
+    print(GRAVITY_MODERN.info())
+
+    print("  [ 설계 풍속 30m/s 기준 바람 동압 비교 ]")
+    for canopy_name, canopy in [
+        ("궁창 시대", CANOPY_PRE_FLOOD),
+        ("족장 시대", CANOPY_PATRIARCHAL),
+        ("현대",      CANOPY_MODERN),
+    ]:
+        al = atmospheric_load(canopy, wind_speed_ms=30.0)
+        print(
+            f"  {canopy_name:<10}: "
+            f"ρ={al.gravity.air_density:.3f}kg/m³  "
+            f"동압={al.wind_dynamic_pressure:.1f}Pa  "
+            f"(현재의 {al.wind_pressure_ratio:.2f}배)"
+        )
+
+
+def demo_structure_analysis():
+    """솔로몬 성전 구조 안전 검증"""
+    from midos_engine.structures.load_analysis import full_structure_analysis, GRAVITY_MODERN
+    from midos_engine.units.cubit_standards import CUBIT_COMMON, CUBIT_HYPER
+    sep = "═" * 72
+    print(f"\n{sep}")
+    print("  11. 솔로몬 성전 구조 하중 분석")
+    print(sep)
+    for std_name, cu_cm in [("일반 규빗 44.5cm", 44.5), ("하이퍼 규빗 90.0cm", 90.0)]:
+        print(f"\n  ── {std_name} ──")
+        checks = full_structure_analysis(cu_cm, GRAVITY_MODERN)
+        for item in checks.values():
+            if hasattr(item, "report"):
+                print(item.report())
+
+
+def demo_temple_full():
+    """솔로몬 성전 상세 설계"""
+    from midos_engine.structures.solomons_temple_full import analyze_temple
+    from midos_engine.units.cubit_standards import CUBIT_COMMON, CUBIT_HYPER, CUBIT_SACRED
+    sep = "═" * 72
+    print(f"\n{sep}")
+    print("  12. 솔로몬 성전 상세 설계 — 규빗 3-way 비교")
+    print(sep)
+    for std in [CUBIT_COMMON, CUBIT_SACRED, CUBIT_HYPER]:
+        result = analyze_temple(std)
+        print(result.summary())
+
+
+def demo_growth_models():
+    """멱함수 vs 로지스틱 성장 모델 비교"""
+    from midos_engine.core.biology import estimate_body
+    sep = "═" * 72
+    print(f"\n{sep}")
+    print("  13. 성장 모델 비교 — 멱함수 vs 로지스틱")
+    print(sep)
+    print(f"  {'인물':<10} {'수명':>5}  {'멱함수(cm)':>10}  {'로지스틱(cm)':>12}  {'차이':>8}")
+    print("  " + "─" * 54)
+    test_cases = [
+        ("노아",     950, CANOPY_PRE_FLOOD),
+        ("셈",       600, CANOPY_EARLY_POST),
+        ("아브라함", 175, CANOPY_PATRIARCHAL),
+        ("모세",     120, CANOPY_MOSAIC),
+        ("솔로몬",    60, CANOPY_MODERN),
+        ("현대인",    75, CANOPY_MODERN),
+    ]
+    for name, lifespan, canopy in test_cases:
+        b_pow = estimate_body(canopy, lifespan, growth_model="power")
+        b_log = estimate_body(canopy, lifespan, growth_model="logistic")
+        diff  = b_log.cubit_cm - b_pow.cubit_cm
+        print(
+            f"  {name:<10} {lifespan:>5}년  "
+            f"{b_pow.cubit_cm:>10.2f}  "
+            f"{b_log.cubit_cm:>12.2f}  "
+            f"{diff:>+8.2f}"
+        )
+
+
 def demo_unit_system():
     """규빗별 히브리 단위 체계"""
     sep = "═" * 72
@@ -202,6 +288,18 @@ def main():
 
     if "--units" in args or run_all:
         demo_unit_system()
+
+    if "--gravity" in args or run_all:
+        demo_gravity()
+
+    if "--structure" in args or run_all:
+        demo_structure_analysis()
+
+    if "--temple" in args or run_all:
+        demo_temple_full()
+
+    if "--growth" in args or run_all:
+        demo_growth_models()
 
     if "--person" in args:
         idx = args.index("--person")

@@ -39,12 +39,19 @@ Python 패키지: midos_engine  (import 이름)
 # Tape_measure/ 에서 실행
 python midos_engine/run_midos_demo.py --all
 
-python midos_demo/run_midos_demo.py --person Noah      # 노아 (하이퍼 규빗)
+# Phase 1 — 크기 탐색
+python midos_engine/run_midos_demo.py --person Noah      # 노아 (하이퍼 규빗)
 python midos_engine/run_midos_demo.py --person 아브라함  # 족장 시대
-python midos_engine/run_midos_demo.py --person Moses    # 모세 (성막 시대)
-python midos_engine/run_midos_demo.py --temporal        # 시대별 규빗 감소 추적
-python midos_engine/run_midos_demo.py --sensitivity     # 대기 감도 분석
-python midos_engine/run_midos_demo.py --validate        # 고고학 교차 검증
+python midos_engine/run_midos_demo.py --person Moses     # 모세 (성막 시대)
+python midos_engine/run_midos_demo.py --temporal         # 시대별 규빗 감소 추적
+python midos_engine/run_midos_demo.py --sensitivity      # 대기 감도 분석
+python midos_engine/run_midos_demo.py --validate         # 고고학 교차 검증
+
+# Phase 2 — 구조 공학 (신규)
+python midos_engine/run_midos_demo.py --gravity          # 궁창 시대 중력·대기 하중
+python midos_engine/run_midos_demo.py --structure        # 솔로몬 성전 구조 안전 검증
+python midos_engine/run_midos_demo.py --temple           # 솔로몬 성전 상세 3-way 비교
+python midos_engine/run_midos_demo.py --growth           # 멱함수 vs 로지스틱 성장 모델
 ```
 
 ```python
@@ -124,26 +131,88 @@ print(r2.cubit.cm)                         # 51.07 cm  ← 이집트 왕실(52.5
 ③ 모세 규빗 (47.2cm):
    탈무드 R.Chaim Naeh 기준 (48.0cm)과 98% 일치
    → 랍비 전통이 '기억'하는 값이 모델에서 자연스럽게 도출
+
+④ 궁창 시대 바람 하중 [Phase 2]:
+   대기밀도 2.564 kg/m³ → 바람 동압 현대의 2.09배
+   → 270m 방주는 현대보다 2.09배 강한 폭풍에 노출됐다
+
+⑤ 솔로몬 성전 구조 분석 [Phase 2]:
+   일반 규빗(44.5cm) → 기둥·보 전부 안전 ✓
+   하이퍼 규빗(89.5cm) → 야긴/보아스 기둥 안전, 성소 지붕 보 처짐 초과 ✗
+   → 성전이 "하이퍼 규빗"으로 지어지지 않은 물리적 이유
+```
+
+---
+
+## Phase 2 — 구조 공학 레이어 (v0.2.0)
+
+### 중력·대기 모델 (`core/gravity.py`)
+
+```python
+from midos_engine.core.gravity import gravity_from_canopy, atmospheric_load
+from midos_engine import CANOPY_PRE_FLOOD
+
+g = gravity_from_canopy(CANOPY_PRE_FLOOD)
+print(g.air_density)          # 2.564 kg/m³  (현재 1.225 kg/m³)
+print(g.wind_pressure_factor) # 2.09×
+
+al = atmospheric_load(CANOPY_PRE_FLOOD, wind_speed_ms=30.0)
+print(al.wind_dynamic_pressure)  # 1157.7 Pa  (현재 551.3 Pa)
+```
+
+### 구조 하중 분석 (`structures/load_analysis.py`)
+
+```python
+from midos_engine.structures.load_analysis import full_structure_analysis
+from midos_engine.core.gravity import GRAVITY_MODERN
+
+checks = full_structure_analysis(cu_cm=44.5, gravity=GRAVITY_MODERN)
+# 야긴 기둥: 좌굴 안전계수 1105× ✓
+# 성소 지붕 보: 처짐 23.8mm < 59mm 허용 ✓
+```
+
+### 솔로몬 성전 상세 설계 (`structures/solomons_temple_full.py`)
+
+```python
+from midos_engine.structures.solomons_temple_full import analyze_temple
+from midos_engine.units.cubit_standards import CUBIT_COMMON, CUBIT_SACRED, CUBIT_HYPER
+
+result = analyze_temple(CUBIT_COMMON)
+print(result.summary())
+# → 공간 구성, 야긴/보아스 기둥, 놋바다 π 이슈,
+#   재료 소요량(금 20.6톤, 청동 341톤), 구조 안전 검증
+```
+
+### 로지스틱 성장 모델 (`core/biology.py` 확장)
+
+```python
+from midos_engine import estimate_body, CANOPY_PRE_FLOOD
+
+# 멱함수 (기본)
+b_pow = estimate_body(CANOPY_PRE_FLOOD, 950, growth_model="power")
+print(b_pow.cubit_cm)    # 89.98 cm
+
+# 로지스틱 포화 (Michaelis-Menten, 상한선 수렴)
+b_log = estimate_body(CANOPY_PRE_FLOOD, 950, growth_model="logistic")
+print(b_log.cubit_cm)    # 133.94 cm
 ```
 
 ---
 
 ## 공학 건축 시스템으로의 확장 가능성
 
-현재 MIDOS v0.1은 **크기 계산 엔진**이다.
-다음 레이어를 쌓으면 **설계 엔진**이 된다:
-
 ```
-Phase 1 (완성) — 크기 탐색 엔진
+Phase 1 (v0.1.0 완성) — 크기 탐색 엔진
   ✓ 시대별 규빗 추적 (수명 → 신체 → 규빗)
   ✓ 성경 구조물 4종 (방주, 성막, 솔로몬 성전, 에스겔 성전)
   ✓ 고고학 교차 검증
   ✓ 다중 시나리오 비교
 
-Phase 2 (다음) — 구조 공학 레이어
-  → gravity.py       : 궁창 시대 중력(g) 변화 모델
-  → load_analysis.py : 재료 강도 × 규모 → 자립 하중 한계
-  → materials.py     : 백향목/돌/금 단위 부피 → 현대 가격 환산
+Phase 2 (v0.2.0 완성) — 구조 공학 레이어
+  ✓ core/gravity.py              : 궁창 시대 대기밀도·바람 하중 (이상기체 법칙)
+  ✓ structures/load_analysis.py  : 재료 강도 × 규빗 스케일 → 구조 안전 검증
+  ✓ structures/solomons_temple_full.py : 성전 상세 설계 3-way 비교
+  ✓ core/biology.py (+logistic)  : 멱함수 vs 로지스틱 포화 성장 모델
 
 Phase 3 (장기) — 건축 설계 모드
   → 회당 설계: 규빗 선택 → 현대 건축 좌표 출력
@@ -169,7 +238,7 @@ MIDOS  (성경 계측)      cubit_cm × dimension_cubits  = 실제크기 (역사
 
 ---
 
-## 개념도
+## 개념도 (v0.2.0)
 
 ```
 인물 (노아, 모세, 솔로몬...)
@@ -177,21 +246,25 @@ MIDOS  (성경 계측)      cubit_cm × dimension_cubits  = 실제크기 (역사
   ▼
   ┌──────────────────────┐
   │  core/canopy.py      │  ← 궁창 대기 상태
-  │  P, O2, UV, CO2      │    (5단계 시퀀스)
+  │  P, O2, UV, CO2      │    (6단계 시퀀스)
   └──────────┬───────────┘
-             │ 환경 파라미터
+             │                ┌────────────────────┐
+             │   [Phase 2]    │  core/gravity.py   │
+             │◄───────────────│  대기밀도·바람하중  │
+             │                │  이상기체 법칙      │
+             │                └────────────────────┘
   ┌──────────▼───────────┐
   │  core/biology.py     │  ← 신체 스케일 모델
-  │  O2^α×P^β×UV^γ×수명^ε│    (지수 합성)
+  │  O2^α×P^β×UV^γ×수명^ε│    멱함수 + 로지스틱
   └──────────┬───────────┘
              │ cubit_cm
-  ┌──────────▼───────────┐   ┌─────────────────┐
-  │  units/              │   │  structures/     │
-  │  CubitStandard       │   │  방주·성막·성전  │
-  │  8종 표준 정의        │   │  순수 규빗 저장  │
-  └──────────┬───────────┘   └────────┬────────┘
-             └──────────┬─────────────┘
-                        │
+  ┌──────────▼───────────┐   ┌──────────────────────────┐
+  │  units/              │   │  structures/             │
+  │  CubitStandard       │   │  방주·성막·성전·에스겔   │
+  │  8종 표준 정의        │   │  + load_analysis   [P2] │
+  └──────────┬───────────┘   │  + solomons_full   [P2] │
+             └──────────┬────┘  (구조 안전·재료 소요)   │
+                        │       └──────────────────────┘
           ┌─────────────▼─────────────┐
           │  validator.py             │
           │  고고학 교차 검증          │
@@ -208,44 +281,47 @@ MIDOS  (성경 계측)      cubit_cm × dimension_cubits  = 실제크기 (역사
 
 ---
 
-## 디렉터리
+## 디렉터리 (v0.2.0)
 
 ```
 Tape_measure/  (Python package: midos_engine)
-├── README.md                 ← 이 파일
-├── run_midos_demo.py         ← 여기서 시작
-├── __init__.py               ← 공개 API
-├── why_it_measures.py        ★ 통합 분석 엔진
-├── scenario_engine.py        ★ 다중 시나리오 비교
-├── validator.py              ★ 고고학 교차 검증
+├── README.md                             ← 이 파일
+├── run_midos_demo.py                     ← 여기서 시작
+├── __init__.py                           ← 공개 API
+├── why_it_measures.py                    ★ 통합 분석 엔진
+├── scenario_engine.py                    ★ 다중 시나리오 비교
+├── validator.py                          ★ 고고학 교차 검증
 ├── core/
-│   ├── canopy.py             ★ 궁창 대기 환경 (6단계)
-│   ├── biology.py            ★ 신체 스케일 모델
-│   └── timeline.py           ★ 성경 인물 시간축
+│   ├── canopy.py                         ★ 궁창 대기 환경 (6단계)
+│   ├── biology.py                        ★ 신체 스케일 모델 (멱함수+로지스틱)
+│   ├── gravity.py                        ★ [Phase 2] 중력·대기 구조 하중
+│   └── timeline.py                       ★ 성경 인물 시간축 (18명)
 ├── units/
-│   ├── cubit_standards.py    ★ 규빗 표준 8종
-│   └── conversions.py        ★ 히브리 단위 변환
+│   ├── cubit_standards.py                ★ 규빗 표준 8종
+│   └── conversions.py                    ★ 히브리 단위 변환
 └── structures/
-    ├── noahs_ark.py          ★ 노아 방주 (창 6:15)
-    ├── tabernacle.py         ★ 성막 (출 25-27)
-    ├── solomons_temple.py    ★ 솔로몬 성전 (왕상 6-7)
-    └── ezekiels_temple.py    ★ 에스겔 성전 (겔 40-48)
+    ├── noahs_ark.py                      ★ 노아 방주 (창 6:15)
+    ├── tabernacle.py                     ★ 성막 (출 25-27)
+    ├── solomons_temple.py                ★ 솔로몬 성전 (왕상 6-7)
+    ├── solomons_temple_full.py           ★ [Phase 2] 성전 상세 3-way
+    ├── load_analysis.py                  ★ [Phase 2] 재료·구조 하중 분석
+    └── ezekiels_temple.py                ★ 에스겔 성전 (겔 40-48)
 ```
 
 ---
 
-## 자체 점검 메모 (v0.1.0 초안)
-
-모델 내부 일관성 기준. 절대적 수치로 보지 말 것.
+## 자체 점검 메모 (v0.2.0)
 
 ```
-  █████████░  ~92  궁창 대기 모델    — 5단계 시퀀스, 물리 파라미터 근거
-  ████████░░  ~85  신체 스케일 모델  — 지수 모델, 파라미터 조정 필요
-  █████████░  ~90  시간축 데이터     — 성경 원문 기반, 18명 수록
-  █████████░  ~91  단위 변환 체계    — 히브리 6단계 단위 완비
-  ████████░░  ~88  구조물 4종        — 원문 치수 충실, 헤롯 성전 미수록
-  █████████░  ~90  고고학 검증       — 5개 실측 기록, 가중 신뢰도
-  █████████░  ~93  시나리오 엔진     — 8종 표준 × 구조물 완전 비교
+  █████████░  ~92  궁창 대기 모델     — 6단계 시퀀스, 물리 파라미터 근거
+  ████████░░  ~85  신체 스케일 모델   — 지수+로지스틱, 파라미터 조정 여지
+  █████████░  ~90  시간축 데이터      — 성경 원문 기반, 18명 수록
+  █████████░  ~91  단위 변환 체계     — 히브리 6단계 단위 완비
+  ████████░░  ~88  구조물 4종         — 원문 치수 충실, 헤롯 성전 미수록
+  █████████░  ~90  고고학 검증        — 5개 실측 기록, 가중 신뢰도
+  █████████░  ~93  시나리오 엔진      — 8종 표준 × 구조물 완전 비교
+  █████████░  ~91  구조 공학 [P2]     — 오일러 좌굴·보 처짐·선체 굽힘 모멘트
+  ████████░░  ~84  성장 모델 비교     — 로지스틱 파라미터 실증 데이터 부재
 
   참고 평균: ~90 / 100  (모델 내부 기준)
 ```
@@ -255,24 +331,32 @@ Tape_measure/  (Python package: midos_engine)
 ## 블록체인 서명 (코드 무결성)
 
 ```
+─── v0.1.0 (Phase 1) ─────────────────────────────────────────────────
 타임스탬프   : 2026-03-08T13:04:17Z
 루트 해시    : ac43da49ce0989d2f4d6a72f3326c13501a5bf7a2bfbb1f67b46bf24b721b3e4
 
+─── v0.2.0 (Phase 2) ─────────────────────────────────────────────────
+타임스탬프   : 2026-03-08T13:35:45Z
+루트 해시    : d85ccf33efb58dd5124fcc91e610c26a85cbbe0a0562ace77ab0e3c89fd379a6
+
 파일별 SHA-256 (앞 16자리):
   d97438077c8f092e  __init__.py
-  c478272b0c53892b  run_midos_demo.py
+  a043eadca4365fae  run_midos_demo.py             ← [updated: +Phase 2 demos]
   b30f6956c94d6a5d  scenario_engine.py
   53f12cbef0f83bc2  validator.py
   40d4a34f7ec5eedf  why_it_measures.py
   812452e98c8b4b3b  core/__init__.py
-  f85df11611118352  core/biology.py
+  8eab59e52dd4ec57  core/biology.py               ← [updated: +logistic model]
   3e8bb3d75d6f3666  core/canopy.py
+  eb8314a95c4e377e  core/gravity.py               ← [new: Phase 2]
   26ec6608e740d588  core/timeline.py
   6882a6d272bddce7  structures/__init__.py
   dd02828487e37293  structures/_base.py
   7179e13d4f8ef841  structures/ezekiels_temple.py
+  45909ca10446adac  structures/load_analysis.py   ← [new: Phase 2]
   6827875f528d649d  structures/noahs_ark.py
   08dec7184e5d8ae5  structures/solomons_temple.py
+  0310e6a21efe10d3  structures/solomons_temple_full.py ← [new: Phase 2]
   f6b4fa960167f1b3  structures/tabernacle.py
   223e83e6c06bf60d  units/__init__.py
   791cb0ca11010799  units/conversions.py
@@ -291,4 +375,4 @@ Tape_measure/  (Python package: midos_engine)
 
 ---
 
-**Built with:** Python 3.x · stdlib only · Canopy Theory · 창세기 수명 데이터 · 고고학 실측 · ISA는 아니지만 RSA(Raqia Standard Atmosphere)
+**Built with:** Python 3.x · stdlib only · Canopy Theory · 창세기 수명 데이터 · 고고학 실측 · RSA(Raqia Standard Atmosphere) · Euler Buckling · Beam Deflection · Ideal Gas Law
