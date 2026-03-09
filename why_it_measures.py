@@ -55,6 +55,16 @@ class MidosResult:
     temporal:     TemporalAnalysis     # 시대별 규빗 추적
     validation:   ValidationResult     # 고고학 교차 검증
 
+    # Phase 3 확장 포인트: 추가 구조물을 코드 수정 없이 전달
+    # 사용법: MidosResult(..., extra_structures=(("헤롯 성전", result), ...))
+    # 접근법: dict(r.extra_structures)["헤롯 성전"]
+    extra_structures: tuple[tuple[str, StructureResult], ...] = ()
+
+    @property
+    def structures_dict(self) -> dict[str, StructureResult]:
+        """extra_structures를 dict로 반환 (Phase 3 편의 접근자)"""
+        return dict(self.extra_structures)
+
     @property
     def summary(self) -> str:
         return (

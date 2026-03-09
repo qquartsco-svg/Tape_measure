@@ -75,17 +75,29 @@ class UnitSystem:
 # 표준 규빗 정의
 # ══════════════════════════════════════════════════════════════
 
-# 궁창 시대 하이퍼 규빗 (이 엔진의 핵심 계산으로 추정)
-# 기본값은 biology 모델의 pre-flood 결과(~89cm)를 반영
+# ── 원형 논리 주의 (Circular Reasoning Warning) ─────────────────────
+# CUBIT_HYPER의 89.5cm 값은 이 엔진(MIDOS)의 biology.py 모델이 출력한 값임.
+# 즉, "canopy mode 가정 → 신체 스케일 → 89cm 도출" 한 것을 다시 표준으로 등록한 것.
+#
+# 이 값은 독립적인 고고학 증거가 없으며, 모델 내부에서만 순환적으로 확인됨.
+# confidence=0.30으로 낮게 설정한 것이 이 사실을 반영함.
+# validator.py의 교차 검증에서 이 표준이 "잘 맞는다"고 나오더라도
+# 그것은 모델이 자신의 출력값을 검증하는 것이므로 독립적 검증이 아님.
+#
+# 사용 시 이 한계를 인지할 것.
 CUBIT_HYPER = CubitStandard(
     name       = "Hyper Cubit",
     name_kr    = "하이퍼 규빗 (궁창 시대)",
     cm         = 89.5,
-    source     = "MIDOS 생물 스케일 모델 (궁창 시대 대기, 수명 950년)",
+    source     = "MIDOS biology.py 모델 출력값 — 독립 고고학 증거 없음 (원형 논리)",
     period     = "Pre-Flood (아담~노아)",
-    confidence = 0.30,   # 직접 고고학 증거 없음, 모델 추론
-    context    = "노아 방주, 궁창 시대 구조물",
-    notes      = "추정값. 대기 환경과 수명 데이터 기반 역산. 직접 증거 없음.",
+    confidence = 0.30,   # 직접 고고학 증거 없음. 모델 자체 추론값.
+    context    = "노아 방주 시뮬레이션, 궁창 시대 가상 설계 시나리오",
+    notes      = (
+        "⚠ 이 값은 MIDOS canopy mode 모델의 출력값을 표준으로 등록한 것. "
+        "독립 고고학 증거 없음. validator.py 점수가 높게 나와도 "
+        "원형 논리(circular reasoning)이므로 독립적 검증이 아님."
+    ),
 )
 
 # 일반 히브리 규빗 (고고학 주류)

@@ -42,10 +42,18 @@ class ScenarioComparison:
         for row in self.rows:
             r = row.result
             dm = r.dims_m
-            # 길이/너비/높이 레이블 자동 탐지
-            length = next((v for k, v in dm.items() if "길이" in k or "length" in k.lower()), 0)
-            width  = next((v for k, v in dm.items() if "너비" in k or "width" in k.lower()), 0)
-            height = next((v for k, v in dm.items() if "높이" in k or "height" in k.lower()), 0)
+            # 길이/너비/높이 레이블 자동 탐지 (한/영 키 모두 지원)
+            length = next((v for k, v in dm.items() if "길이" in k or "length" in k.lower()), None)
+            width  = next((v for k, v in dm.items() if "너비" in k or "width" in k.lower()), None)
+            height = next((v for k, v in dm.items() if "높이" in k or "height" in k.lower()), None)
+            # 키를 못 찾으면 순서대로 첫 3개 값 사용 (fallback)
+            vals = list(dm.values())
+            if length is None:
+                length = vals[0] if len(vals) > 0 else 0.0
+            if width is None:
+                width  = vals[1] if len(vals) > 1 else 0.0
+            if height is None:
+                height = vals[2] if len(vals) > 2 else 0.0
             lines.append(
                 f"  {row.standard.name_kr:<26} {row.standard.cm:>6.1f}  "
                 f"{length:>9.2f}  {width:>9.2f}  {height:>9.2f}  {r.volume_m3:>12.1f}"

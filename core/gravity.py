@@ -73,8 +73,14 @@ def air_density_from_canopy(canopy: CanopyState) -> float:
     이상기체 법칙으로 대기 밀도 계산.
     ρ = P × M_air / (R × T)
     """
+    if canopy.pressure_atm <= 0:
+        raise ValueError(f"pressure_atm은 양수여야 합니다: {canopy.pressure_atm}")
+    T_k = canopy.temp_mean_C + 273.15
+    if T_k <= 0:
+        raise ValueError(
+            f"온도가 절대영도 이하입니다: {canopy.temp_mean_C}°C → {T_k}K"
+        )
     P_pa = canopy.pressure_atm * 101325.0   # atm → Pa
-    T_k  = canopy.temp_mean_C + 273.15       # °C → K
     rho  = P_pa * _M_AIR / (_R_GAS * T_k)
     return rho
 

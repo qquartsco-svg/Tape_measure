@@ -30,9 +30,8 @@ class ArchRecord:
     reliability:  float  # 데이터 신뢰도 0~1
 
     def implied_cubit_cm(self) -> float:
-        if self.cubits_ref > 0:
-            return self.measured_m * 100.0 / self.cubits_ref
-        return self.measured_m * 100.0 / 1.0
+        divisor = self.cubits_ref if self.cubits_ref > 0 else 1.0
+        return self.measured_m * 100.0 / divisor
 
 
 @dataclass(frozen=True)
@@ -123,6 +122,9 @@ def validate(
     errors = []
     for rec in recs:
         implied = rec.implied_cubit_cm()
+        if implied <= 0:
+            errors.append(0.0)
+            continue
         err_pct = (standard.cm - implied) / implied * 100.0
         errors.append(err_pct)
 

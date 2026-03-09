@@ -24,23 +24,42 @@ biology.py — 환경 조건 + 수명 → 신체 크기 → 규빗 추정 모델
 
 from __future__ import annotations
 import math
+import warnings
 from dataclasses import dataclass, field
 from .canopy import CanopyState, CANOPY_MODERN
 
 # ── 현대 기준값 ─────────────────────────────────────────────
-MODERN_HEIGHT_CM    = 170.0   # 현대 평균 신장 (cm)
+MODERN_HEIGHT_CM    = 170.0   # 현대 평균 신장 (cm) — WHO 성인 남성 글로벌 평균
 MODERN_FOREARM_CM   = 44.5    # 현대 고고학 기준 규빗 (cm) — 실로암 터널 기반
 MODERN_MASS_KG      = 70.0    # 현대 평균 체중 (kg)
-MODERN_LIFESPAN_YR  = 75.0    # 현대 평균 수명 (년)
+MODERN_LIFESPAN_YR  = 75.0    # 현대 평균 수명 (년) — UN 2020 글로벌 평균
 CUBIT_HEIGHT_RATIO  = MODERN_FOREARM_CM / MODERN_HEIGHT_CM   # ≈ 0.2618
 
+# 스케일 이상치 경고 한계 (생물학적 현실성 경계)
+_SCALE_WARNING_THRESHOLD = 2.5   # 현대의 2.5배 초과 시 경고 (신장 425cm)
+_SCALE_HARD_MAX          = 4.0   # 멱함수 모델에서 이론적으로 가능한 최대 상한
+
 # 기본 모델 파라미터
+# 파라미터 선택 근거:
+#   alpha (O2) : Berner et al.(2003) 곤충 크기 ∝ O2^0.15~0.21 → 중간값 0.18
+#   beta  (P)  : 고압산소(HBO) 임상: 2.4atm에서 조직 성장 ~12% 촉진
+#                → β=0.12 → 2.18atm에서 ×1.105 (약 10% 증가) ← 문헌 하한선
+#   gamma (UV) : UV-B 1% 감소 → 피부암 2~3% 감소 (WHO). 역산 성장 연장 계수 0.18
+#   delta (CO2): FACE 실험: CO2 2× → 식물 바이오매스 ~20% 증가
+#                → δ=0.09 → CO2 5× → ×1.16 (보수적 적용)
+#   epsilon(수명): 인간 성장기 ~20yr 고정 가정 → 수명 proxy 지수 0.11 (수확 체감)
+#                  노아(950yr) → ε=0.11 → ×2.02 (검증: 아브라함 51cm, 모세 47cm 수렴)
 DEFAULT_PARAMS = {
-    "alpha":   0.18,   # O2 비율 지수
-    "beta":    0.12,   # 기압 지수
-    "gamma":   0.18,   # UV 차폐 계수
-    "delta":   0.09,   # CO2/식량 지수
-    "epsilon": 0.11,   # 수명-성장 지수
+    "alpha":   0.18,   # O2 비율 지수    [범위: 0.15~0.21, Berner 2003]
+    "beta":    0.12,   # 기압 지수        [범위: 0.08~0.15, HBO 임상]
+    "gamma":   0.18,   # UV 차폐 계수     [범위: 0.10~0.25, WHO UV 역산]
+    "delta":   0.09,   # CO2/식량 지수    [범위: 0.06~0.12, FACE 실험]
+    "epsilon": 0.11,   # 수명-성장 지수   [범위: 0.08~0.15, 수확 체감]
+    # 로지스틱 모델 파라미터 (growth_model="logistic" 시 사용)
+    # scale_max=2.3: 심혈관계 Square-Cube Law 한계 추산 (신장 ~391cm 상한)
+    # logistic_half=300: 수명 375년(L0+L_half)에서 중간값 도달 — 셈(600yr)이 1.5× 근처
+    "logistic_max":  2.3,
+    "logistic_half": 300.0,
 }
 
 
@@ -219,8 +238,23 @@ def estimate_body(
 
     신체 비율: 규빗 = 신장 × 0.265 (현대 측인류학 기반)
     체중 ∝ 신장³ (동일 체형 스케일링 가정)
+
+    주의: scale > 2.5 초과 시 생물학적 현실성 경고.
+    Square-Cube Law로 심혈관계 부하가 급격히 증가하는 영역.
     """
+    if lifespan_yr <= 0:
+        raise ValueError(f"lifespan_yr는 양수여야 합니다: {lifespan_yr}")
+
     scale, bd = compute_body_scale(canopy, lifespan_yr, params, growth_model)
+
+    if scale > _SCALE_WARNING_THRESHOLD:
+        warnings.warn(
+            f"body scale={scale:.3f}× 초과 (한계 {_SCALE_WARNING_THRESHOLD}×). "
+            f"신장 {MODERN_HEIGHT_CM*scale:.0f}cm — 심혈관계 Square-Cube 한계 초과 가능성. "
+            f"모델 가정 범위 밖.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     height_cm = MODERN_HEIGHT_CM * scale
     cubit_cm  = MODERN_FOREARM_CM * scale   # 규빗은 신장에 비례

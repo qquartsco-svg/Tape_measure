@@ -29,6 +29,8 @@ class CubitConverter:
         return self.cubits_to_m(cubits) * 3.28084
 
     def m_to_cubits(self, meters: float) -> float:
+        if self.standard.cm <= 0:
+            raise ValueError(f"규빗 길이가 0 이하입니다: {self.standard.cm}cm")
         return meters * 100.0 / self.standard.cm
 
     # ── 히브리 하위 단위 ──────────────────────────────────────
